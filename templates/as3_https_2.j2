@@ -4,8 +4,8 @@
     "persist": false,
     "declaration": {
         "class": "ADC",
-        "schemaVersion": "3.12.0",
-        "remark": "HTTPS Virtual server",
+        "schemaVersion": "3.2.0",
+        "remark": "example remark",
         "{{ tenant }}":{
             "class": "Tenant",
             "{{ app }}": {
@@ -16,41 +16,39 @@
                     "virtualAddresses": [
                         "{{ virtual.destination}}"
                     ],
-                    "virtualPort": {{ virtual.port }},
-                    "pool": "{{ pool.name }}",
-                    "serverTLS": "{{ serverTLS.name }}",
-                    "snat": "{{ virtual.snat }}"
+                    "virtualPort": {{ virtual.port}},
+                    "pool": "app_pool",
+                    "serverTLS": "webtls",
+                    "snat": "auto"
                 },
-                "{{ serverTLS.name }}": {
+                "webtls": {
                     "class": "TLS_Server",
                     "certificates": [
                         {
-                            "certificate": "{{ serverTLS.cert_name }}"
+                            "certificate": "webcert"
                         }
                     ]
                 },
-                "{{ serverTLS.cert_name }}": {
+                "webcert": {
                     "class": "Certificate",
                    "privateKey": {
-                       "bigip": "/Common/default.key"
+                        "bigip": "/Common/default.key"
                     },
                     "certificate": {
                         "bigip": "/Common/default.crt"
                     }
                 },   
-                "{{ pool.name }}": {
+                "app_pool": {
                     "class": "Pool",
                     "monitors": [
-                        "{{ pool.monitor }}"
+                        "http"
                     ],
                     "members": [
                         {
-                            "servicePort": {{ pool.port }},
+                            "servicePort": 80,
                             "serverAddresses": [
-                                {% set comma = joiner(",") %}
-                                {% for member in pool_mem %}
-                                {{comma()}} "{{  member.address  }}"
-                                {% endfor %}
+                            "10.128.20.14",
+							"10.128.20.15"
 
                             ]
                         }

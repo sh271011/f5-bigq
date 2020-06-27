@@ -1,4 +1,4 @@
-#This tasks modifies pool members for an AS3 Web Application
+#This tasks removes an AS3 Web Application
 #
 #ansible-playbook plays/task4.yml -i inventory -e "tenant=<tenant_name>" --ask-vault-pass
 #
@@ -12,9 +12,6 @@
   connection: local
   gather_facts: false
   tasks:
-
-    - name: Include data model file for app1
-      include_vars: "../files/as3_webapp.yml"
     
     - name: Include a list of BIG-IP devices to deploy app1
       include_vars: "../files/hosts.yml"
@@ -39,12 +36,11 @@
         url: "https://{{ inventory_hostname }}/mgmt/shared/appsvcs/declare"
         headers:
           X-F5-Auth-Token: "{{ auth.json.token.token }}"
-        method: PATCH
+        method: POST
         status_code: 200,202
         timeout: 300
-        body: "{{ lookup('template', '../templates/as3_modify_pool_members.j2') }}"
+        body: "{{ lookup('template', '../templates/as3_webapp_delete.j2') }}"
         body_format: json
         force_basic_auth: no
         validate_certs: no
-      with_item: "{{ new_mem }}"
 

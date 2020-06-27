@@ -3,7 +3,7 @@ tenant: "{{ tenant }}"
 app: "{{ app }}"
 f5_hostname: "bigip-a.example.net"
 virtual:
-  destination: "10.128.10.103"
+  destination: "10.128.10.105"
   snat: "auto"
   port: 8080
 pool:
