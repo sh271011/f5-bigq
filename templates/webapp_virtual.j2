@@ -1,0 +1,19 @@
+{
+  "partition": "{{ partition }}",
+  "name": "{{ virtual.name }}",
+  "destinationAddress": "{{ virtual.destination }}",
+  "mask": "{{ virtual.mask }}",
+  "destinationPort": "{{ virtual.port }}",
+  "sourceAddress": "0.0.0.0/0",
+  "deviceReference": {
+    "link": "{{ deviceReference }}"
+  },
+  "poolReference": {
+    "link": "{{ poolReference }}"
+  },
+  "ipProtocol": "tcp",
+  "sourceAddressTranslation": {
+    "type": "{{ virtual.snat }}"
+  },
+  "description": "{{ virtual.description }}"
+}

@@ -1,0 +1,72 @@
+{
+  "class": "AS3",
+  "action": "deploy",
+  "persist": false,
+  "declaration": {
+    "class": "ADC",
+    "schemaVersion": "3.12.0",
+    "target": {
+        "address": "{{ bigip_devices.F5_A.ip }}"
+    },
+    "remark": "An HTTP and an HTTPS application",
+    "{{ tenant }}": {
+      "class": "Tenant",
+      "forwad_to_https": {
+        "class": "Application",
+        "service": {
+          "class": "Service_HTTP",
+          "virtualAddresses": [
+            "{{ virtual.destination }}"
+          ],
+          "iRules": [
+                "http_to_https"
+          ]
+        },
+        "http_to_https": {
+            "class": "iRule",
+            "remark": "choose private pool based on IP",
+            "iRule": "when HTTP_REQUEST {\nHTTP::redirect https://[getfield [HTTP::host] ":" 1]:8443[HTTP::uri]\n}"
+        }
+      },
+      "{{ app }}": {
+        "class": "Application",
+        "service": {
+          "class": "Service_HTTPS",
+          "virtualAddresses": [
+            "{{ virtual.destination }}"
+          ],
+          "pool": "{{ pool.name }}",
+          "serverTLS": "{{ serverTLS.name }}"
+        },
+        "web_pool": {
+          "class": "Pool",
+          "monitors": [
+            "{{ pool.monitor }}"
+          ],
+          "members": [{
+            "servicePort": {{ pool.port }},
+            "serverAddresses": [
+            {% set comma = joiner(",") %}
+            {% for member in pool_mem %}
+            {{comma()}} "{{  member.address  }}"
+            {% endfor %}
+            ]
+          }]
+        },
+        "{{ serverTLS.name }}": {
+          "class": "TLS_Server",
+          "certificates": [{
+            "certificate": "{{ serverTLS.cert_name }}"
+          }]
+        },
+        "{{ serverTLS.cert_name }}": {
+          "class": "Certificate",
+          "remark": "in practice we recommend using a passphrase",
+          "certificate": "{{ certificate }}",
+          "privateKey": "{{ privkey }}"
+          }
+        }
+      }
+    }
+  }
+}

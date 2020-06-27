@@ -1,0 +1,32 @@
+---
+app_name: "{{ app_name }}"
+f5_hostname: "bigip-a.example.net"
+module: "adc-core"
+snapshot:
+  name: "{{ app_name }}_snapshot"
+  description: "Snapshot before deploying {{ app_name }}"
+deployment:
+  name: "deploy_{{ app_name }}"
+  description: "Deploying {{ app_name }} to F5-A"
+partition: "Common"
+nodes:
+  - address: "10.128.20.11"
+  - address: "10.128.20.12"
+pool:
+  name: "{{ app_name }}_pool"
+  lb_mode: "round-robin"
+  port: "80"
+  monitor: "/Common/http"
+virtual:
+  name: "{{ app_name }}.example.net"
+  destination: "10.128.10.104"
+  mask: "255.255.255.255"
+  port: "80"
+  description: "HTTP virtual for {{ app_name }}"
+  snat: "automap"
+  ipProtocol: "tcp"
+profile:
+  - name: "tcp-wan-optimized"
+    context: "clientside"
+  - name: "tcp-lan-optimized"
+    context: "serverside"

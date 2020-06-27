@@ -1,0 +1,75 @@
+#This tasks deploys htttps Web Application using AS3
+#
+#ansible-playbook plays/task3.yml -i inventory -e "tenant=<tenant_name> app=<app_name>" --ask-vault-pass
+#
+#Please refer the example exceution below
+#ansible-playbook plays/task4.yml -i inventory -e "tenant=tenant1 app=app1" --ask-vault-pass
+#Vault password:ansible
+
+- name: Playbook to create HTTP application app1 on F5-A
+  hosts: bigiq
+  connection: local
+  gather_facts: false
+  tasks:
+    
+    - name: Include data model file for app1
+      include_vars: "../files/as3_https.yml"
+
+    - name: Include a list of BIG-IP devices to deploy app1
+      include_vars: "../files/hosts.yml"
+
+    - name: Include passwords for devices
+      include_vars: "../files/passwords.yml"
+
+    - name: Ensure python OpenSSL dependencies are installed.
+      pip:
+        name: pyOpenSSL
+        state: present
+      ignore_errors: yes
+
+    - name: Generate an OpenSSL private key.
+      openssl_privatekey:
+        path: "../files/{{ app }}_privkey.pem"
+
+    - name: Generate an OpenSSL CSR.
+      openssl_csr:
+        path: "../files/{{ app }}_csr.csr"
+        privatekey_path: "../files/{{ app }}_privkey.pem"
+        common_name: "{{ app }}.example.com"
+
+    - name: Generate a Self Signed OpenSSL certificate.
+      openssl_certificate:
+        path: "../files/{{ app}}_fullchain.pem"
+        privatekey_path: "../files/{{ app }}_privkey.pem"
+        csr_path: "../files/{{ app }}_csr.csr"
+        provider: selfsigned
+
+    - set_fact:
+        certificate: "{{ lookup('file','../files/{{ app }}_fullchain.pem') }}"
+        privkey: "{{ lookup('file','../files/{{ app }}_privkey.pem') }}"
+
+    - name: Get Authentication Token for BIG-IQ Login
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/shared/authn/login?async=true"
+        method: POST
+        body: {"username":"{{ bigiq_username }}", "password":"{{ bigiq_password }}", "loginProviderName":"tmos"}
+        status_code: 200, 202
+        timeout: 300
+        body_format: json
+        force_basic_auth: no
+        validate_certs: no
+      register: auth
+
+    - name: Send AS3 declaration to F5-A
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/shared/appsvcs/declare"
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        method: POST
+        status_code: 200,202
+        timeout: 300
+        body: "{{ lookup('template', '../templates/as3_https.j2') }}"
+        body_format: json
+        force_basic_auth: no
+        validate_certs: no
+      register: as3_output

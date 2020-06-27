@@ -1,0 +1,44 @@
+{
+    "class": "AS3",
+    "action": "deploy",
+    "persist": false,
+    "declaration": {
+        "class": "ADC",
+        "schemaVersion": "3.12.0",
+        "target": {
+                "address": "{{ bigip_devices.F5_A.ip }}"
+        },
+        "{{ tenant }}": {
+                "class": "Tenant",
+                "{{ app }}": {
+                    "class": "Application",
+                    "template": "http",
+                    "serviceMain": {
+                            "class": "Service_HTTP",
+                            "virtualAddresses": [
+                                    "{{ virtual.destination }}"
+                            ],
+                            "snat": "{{ virtual.snat }}",
+                            "virtualPort": {{ virtual.port }},
+                            "pool": "{{ pool.name }}"
+                    },
+                    "{{ pool.name }}": {
+                            "class": "Pool",
+                            "monitors": [
+                                    "{{ pool.monitor }}"
+                            ],
+                            "members": [{
+                                            "servicePort": {{ pool.port }},
+                                            "serverAddresses": [
+                                                {% set comma = joiner(",") %}
+                                                {% for member in pool_mem %}
+                                                {{comma()}} "{{  member.address  }}"
+                                                {% endfor %}
+                                            ]
+                                    }
+                            ]
+                    }
+            }
+       }
+    }
+}

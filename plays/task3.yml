@@ -1,0 +1,50 @@
+#This Playbook servers two purpose
+#1. This can deploy a new tenant and application
+#2. We can use the same playbook to send an updated AS3 declaration when there are changes to application
+#
+#ansible-playbook plays/task3.yml -i inventory -e "tenant=<tenant_name> app=<app_name>" --ask-vault-pass
+#
+#Please refer the example exceution below
+#ansible-playbook plays/task4.yml -i inventory -e "tenant=tenant1 app=app1" --ask-vault-pass
+#Vault password:ansible
+
+- name: Playbook to create HTTP application app1 on F5-A
+  hosts: bigiq
+  connection: local
+  gather_facts: false
+  tasks:
+    
+    - name: Include data model file for app1
+      include_vars: "../files/as3_webapp.yml"
+
+    - name: Include a list of BIG-IP devices to deploy app1
+      include_vars: "../files/hosts.yml"
+
+    - name: Include passwords for devices
+      include_vars: "../files/passwords.yml"
+
+    - name: Get Authentication Token for BIG-IQ Login
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/shared/authn/login?async=true"
+        method: POST
+        body: {"username":"{{ bigiq_username }}", "password":"{{ bigiq_password }}", "loginProviderName":"tmos"}
+        status_code: 200, 202
+        timeout: 300
+        body_format: json
+        force_basic_auth: no
+        validate_certs: no
+      register: auth
+
+    - name: Send AS3 declaration to F5-A
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/shared/appsvcs/declare"
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        method: POST
+        status_code: 200,202
+        timeout: 300
+        body: "{{ lookup('template', '../templates/as3_webapp_deploy.j2') }}"
+        body_format: json
+        force_basic_auth: no
+        validate_certs: no
+      register: as3_output

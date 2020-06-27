@@ -1,0 +1,223 @@
+---
+# This Playbook will demonstrate creation of HTTP application on F5-A with BIG-IQ as source of truth(proxy)
+# Below steps are involved in creation of HTTP application
+# 1. Creation of nodes
+# 2. Creation of pool
+# 3. Adding pool members to pool
+# 4. Creation of Virtual server
+# 5. Attach a pool to virtual server
+# 6. Attach profile to virtual server
+
+#ansible-playbook plays/task2.yml -i inventory --ask-vault-pass
+#Vault password:ansible
+
+- name: Playbook to create HTTP application app1 on F5-A
+  hosts: bigiq
+  connection: local
+  gather_facts: false
+  tasks:
+    
+    - name: Include data model file for app1
+      include_vars: "../files/webapp.yml"
+
+    - name: Include a list of BIG-IP devices to deploy app1
+      include_vars: "../files/hosts.yml"
+
+    - name: Include passwords for devices
+      include_vars: "../files/passwords.yml"
+
+    - name: Get Authentication Token for BIG-IQ Login
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/shared/authn/login?async=true"
+        method: POST
+        body: {"username":"{{ bigiq_username }}", "password":"{{ bigiq_password }}", "loginProviderName":"tmos"}
+        status_code: 200, 202
+        timeout: 300
+        body_format: json
+        force_basic_auth: no
+        validate_certs: no
+      register: auth
+
+    - name: Get DeviceReference for F5-A
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/shared/resolver/device-groups/cm-adccore-allbigipDevices/devices"
+        method: GET
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        status_code: 200, 202
+        timeout: 300
+        force_basic_auth: no
+        validate_certs: no
+      register: deviceRef
+
+    - name: Set DeviceReference variable
+      set_fact:
+        deviceReference: "{{ item.selfLink  }}"
+      with_items: "{{ deviceRef.json['items'] }}"
+      when: item.hostname == f5_hostname
+
+    - name: Creation of nodes
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/cm/adc-core/working-config/ltm/node"
+        method: POST
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        status_code: 200, 202
+        body: "{{ lookup('template','../templates/webapp_nodes.j2') }}"
+        body_format: json
+        timeout: 300
+        force_basic_auth: no
+        validate_certs: no
+      register: nodes_output
+      with_items: "{{ nodes }}"
+
+    - name: Extract parameters for pool members
+      set_fact:
+        pool_members: "{{ pool_members|default([]) + [ {'name': item.json.address, 'port': pool.port, 'partition': partition, 'nodeReference': item.json.selfLink }] }}"
+      with_items: "{{ nodes_output.results }}"
+
+    - name: Creation of Pool
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/cm/adc-core/working-config/ltm/pool"
+        method: POST
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        status_code: 200, 202
+        body: "{{ lookup('template','../templates/webapp_pool.j2') }}"
+        body_format: json
+        timeout: 300
+        force_basic_auth: no
+        validate_certs: no
+      register: pool
+
+    - name: Get PoolReference
+      set_fact:
+        poolReference: "{{ pool.json.selfLink }}"
+        pool_id: "{{ pool.json.id }}"
+    
+    - name: Add Pool Members to pool
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/cm/adc-core/working-config/ltm/pool/{{ pool_id }}/members"
+        method: POST
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        status_code: 200, 202
+        body: "{{ lookup('template','../templates/webapp_pool_members.j2') }}"
+        body_format: json
+        timeout: 300
+        force_basic_auth: no
+        validate_certs: no
+      with_items: "{{ pool_members }}"
+
+    - name: Creation of Virtual server
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/cm/adc-core/working-config/ltm/virtual"
+        method: POST
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        status_code: 200, 202
+        body: "{{ lookup('template','../templates/webapp_virtual.j2') }}"
+        body_format: json
+        timeout: 300
+        force_basic_auth: no
+        validate_certs: no
+      register: virtual
+
+    - name: Get VirtualReference and Virtual id
+      set_fact:
+        virtualReference: "{{ virtual.json.selfLink }}"
+        virtual_id: "{{ virtual.json.id }}"
+
+    - name: Get TCP Profiles for Virtual servers
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/cm/adc-core/working-config/ltm/profile/tcp"
+        method: GET
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        status_code: 200, 202
+        timeout: 300
+        force_basic_auth: no
+        validate_certs: no
+      register: profiles
+
+    - name: Get TCP Protocol clientside profile reference
+      set_fact:
+        profilesRef: "{{ profilesRef|default([]) + [ {'link': item.selfLink, 'name': item.name, 'context': profile.0.context }] }}"
+      with_items: "{{ profiles.json['items'] }}"
+      when: item.name == profile.0.name
+
+
+    - name: Get TCP Protocol Serverside profile reference
+      set_fact:
+        profilesRef: "{{ profilesRef|default([]) + [ {'link': item.selfLink, 'name': item.name, 'context': profile.1.context}] }}"
+      with_items: "{{ profiles.json['items'] }}"
+      when: item.name == profile.1.name
+
+    - name: Attach TCP Profiles to virtual server
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/cm/adc-core/working-config/ltm/virtual/{{ virtual_id }}/profiles"
+        method: POST
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        status_code: 200, 202
+        body: "{{ lookup('template','../templates/webapp_profiles.j2') }}"
+        body_format: json
+        timeout: 300
+        force_basic_auth: no
+        validate_certs: no
+      register: virtual_server
+      with_items: "{{ profilesRef }}"
+
+
+    - name: create snapshot of current config
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/cm/{{ module }}/tasks/snapshot-config"
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        method: POST
+        status_code: 202
+        body_format: json
+        body: '{ "name": "{{ snapshot.name }}", "description": "{{ snapshot.description }}" }'
+        timeout: 300
+        force_basic_auth: no
+        validate_certs: no
+      register: snapshot
+      
+    - name: Get Snapshot link
+      set_fact:
+        snapshot_link: "{{ snapshot.json.selfLink }}"
+        snapshot_id: "{{ snapshot.json.id }}"
+  
+    - name: Check if the snapshot is complete
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt//cm/{{ module }}/tasks/snapshot-config/{{ snapshot_id }}"
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        method: GET
+        status_code: 200
+        force_basic_auth: no
+        validate_certs: no
+      register: snapshot_status
+      until: snapshot_status.json.status == "FINISHED"
+
+    - name: Get Snapashot Reference
+      set_fact:
+         snapshotReference: "{{ snapshot_status.json.snapshotReference.link }}"
+
+    
+    - name: Create and Deploy configuration on F5-A
+      uri:
+        url: "https://{{ inventory_hostname }}/mgmt/cm/{{ module }}/tasks/deploy-configuration"
+        headers:
+          X-F5-Auth-Token: "{{ auth.json.token.token }}"
+        method: POST
+        status_code: 200,202
+        body_format: json
+        body: "{{ lookup('template', '../templates/webapp_deployment.j2') }}"
+        timeout: 300
+        force_basic_auth: no
+        validate_certs: no
+      register: deployment
+
+
+    

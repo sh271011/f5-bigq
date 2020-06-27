@@ -1,0 +1,22 @@
+---
+tenant: "{{ tenant }}"
+app: "{{ app }}"
+f5_hostname: "bigip-a.example.net"
+virtual:
+  destination: "10.128.10.103"
+  snat: "auto"
+  port: 8080
+pool:
+  name: "{{ app }}_pool"
+  monitor: "http"
+  port: 80
+  loadBalancingMode: "round-robin"
+pool_mem:
+  - address: "10.128.20.13"
+    adminState: enable
+  - address: "10.128.20.14"
+    adminState: enable
+op: "add"
+new_mem:
+  - address: "10.128.20.15"
+    adminState: enable

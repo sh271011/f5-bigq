@@ -1,0 +1,46 @@
+---
+#This playbook will discover F5-A, import LTM & ASM Modules
+#License F5-A as managed device using the RegKey Pool
+
+#ansible-playbook plays/task1.yml -i inventory --ask-vault-pass
+#Vault password:ansible
+
+
+- name: Playbook to discover F5-A, import modules & license using RegKey Pool
+  hosts: bigiq
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: Include a list of BIG-IP devices to be imported
+      include_vars: "../files/hosts.yml"
+
+    - name: Include passwords for devices
+      include_vars: "../files/passwords.yml"
+    
+    - name: Discover F5-A to establish trust & import ltm,asm modules
+      bigiq_device_discovery:
+        device_address: "{{ bigip_devices.F5_A.ip }}"
+        device_username: "{{ bigip_username }}"
+        device_password: "{{ bigip_password }}"
+        device_conflict_policy: "{{ bigip_devices.F5_A.device_conflict_policy }}"
+        state: "{{ bigip_devices.F5_A.state  }}"
+        modules: "{{ bigip_devices.F5_A.modules }}"
+        provider:
+          server: "{{ inventory_hostname }}"
+          user: "{{ bigiq_username }}"
+          password: "{{ bigiq_password }}"
+          validate_certs: false
+
+    - name: License Managed F5-A using key from RegKey pool
+      bigiq_regkey_license_assignment:
+        pool: "{{ regkey_pool }}"
+        key: "{{ F5_A_license_key }}"
+        device: "{{ bigip_devices.F5_A.hostname }}"
+        managed: yes
+        state: "{{ bigip_devices.F5_A.state }}"
+        provider:
+          server: "{{ inventory_hostname }}"
+          user: "{{ bigiq_username }}"
+          password: "{{ bigiq_password }}"
+          validate_certs: false
+      
