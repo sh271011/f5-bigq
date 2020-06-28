@@ -4,10 +4,18 @@
     "persist": false,
     "declaration": {
         "class": "ADC",
-        "schemaVersion": "3.12.0",
+        "schemaVersion": "3.18.0",
+        "controls": {
+            "class": "Controls",
+            "traceResponse": false
+            },
         "remark": "HTTPS Virtual server",
         "{{ tenant }}":{
             "class": "Tenant",
+            "controls": {
+                "class": "Controls",
+                "traceResponse": true
+                },
             "{{ app }}": {
                 "class": "Application",
                 "template": "https",
@@ -35,8 +43,9 @@
                        "bigip": "/Common/default.key"
                     },
                     "certificate": {
-                        "bigip": "/Common/default.crt"
-                    }
+                      "bigip": "/Common/default.crt"
+                    },
+                    "ignoreChanges": true
                 },   
                 "{{ pool.name }}": {
                     "class": "Pool",

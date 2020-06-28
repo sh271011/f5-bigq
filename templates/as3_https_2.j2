@@ -4,10 +4,18 @@
     "persist": false,
     "declaration": {
         "class": "ADC",
-        "schemaVersion": "3.2.0",
-        "remark": "example remark",
+        "schemaVersion": "3.18.0",
+        "controls": {
+            "class": "Controls",
+            "traceResponse": false
+            },
+        "remark": "HTTPS Virtual server",
         "{{ tenant }}":{
             "class": "Tenant",
+            "controls": {
+                "class": "Controls",
+                "traceResponse": true
+                },
             "{{ app }}": {
                 "class": "Application",
                 "template": "https",
@@ -16,39 +24,42 @@
                     "virtualAddresses": [
                         "{{ virtual.destination}}"
                     ],
-                    "virtualPort": {{ virtual.port}},
-                    "pool": "app_pool",
-                    "serverTLS": "webtls",
-                    "snat": "auto"
+                    "virtualPort": {{ virtual.port }},
+                    "pool": "{{ pool.name }}",
+                    "serverTLS": "{{ serverTLS.name }}",
+                    "snat": "{{ virtual.snat }}"
                 },
-                "webtls": {
+                "{{ serverTLS.name }}": {
                     "class": "TLS_Server",
                     "certificates": [
                         {
-                            "certificate": "webcert"
+                            "certificate": "{{ serverTLS.cert_name }}"
                         }
                     ]
                 },
-                "webcert": {
+                "{{ serverTLS.cert_name }}": {
                     "class": "Certificate",
                    "privateKey": {
-                        "bigip": "/Common/default.key"
+                       "{{ privkey }}"
                     },
                     "certificate": {
-                        "bigip": "/Common/default.crt"
-                    }
+                      "{{ certificate }}"
+                    },
+                    "ignoreChanges": true
                 },   
-                "app_pool": {
+                "{{ pool.name }}": {
                     "class": "Pool",
                     "monitors": [
-                        "http"
+                        "{{ pool.monitor }}"
                     ],
                     "members": [
                         {
-                            "servicePort": 80,
+                            "servicePort": {{ pool.port }},
                             "serverAddresses": [
-                            "10.128.20.14",
-							"10.128.20.15"
+                                {% set comma = joiner(",") %}
+                                {% for member in pool_mem %}
+                                {{comma()}} "{{  member.address  }}"
+                                {% endfor %}
 
                             ]
                         }

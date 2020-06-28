@@ -20,7 +20,34 @@
 
     - name: Include passwords for devices
       include_vars: "../files/passwords.yml"
-    
+
+    - name: Ensure python OpenSSL dependencies are installed.
+      pip:
+        name: pyOpenSSL
+        state: present
+      ignore_errors: yes
+
+    - name: Generate an OpenSSL private key.
+      openssl_privatekey:
+        path: "../files/{{ app }}_privkey.key"
+
+    - name: Generate an OpenSSL CSR.
+      openssl_csr:
+        path: "../files/{{ app }}_csr.csr"
+        privatekey_path: "../files/{{ app }}_privkey.key"
+        common_name: "{{ app }}.example.com"
+
+    - name: Generate a Self Signed OpenSSL certificate.
+      openssl_certificate:
+        path: "../files/{{ app}}_fullchain.crt"
+        privatekey_path: "../files/{{ app }}_privkey.key"
+        csr_path: "../files/{{ app }}_csr.csr"
+        provider: selfsigned
+
+    - set_fact:
+        certificate: "{{ lookup('file','../files/{{ app }}_fullchain.crt', split_lines=False) }}"
+        privkey: "{{ lookup('file','../files/{{ app }}_privkey.key', split_lines=False) }}"
+
     - name: Get Authentication Token for BIG-IQ Login
       uri:
         url: "https://{{ inventory_hostname }}/mgmt/shared/authn/login?async=true"
@@ -41,7 +68,7 @@
         method: POST
         status_code: 200,202
         timeout: 300
-        body: "{{ lookup('template', '../templates/as3_https.j2',split_lines=False) }}"
+        body: "{{ lookup('template', '../templates/as3_https_2.j2',split_lines=False) }}"
         body_format: json
         force_basic_auth: no
         validate_certs: no
